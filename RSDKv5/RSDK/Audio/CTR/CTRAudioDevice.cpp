@@ -94,6 +94,10 @@ bool32 AudioDevice::Init()
 
   APT_SetAppCpuTimeLimit(30);
 
+  // init audio thread lock
+  LightLock_Init(&asyncFileLock);
+  LightLock_Init(&audioThreadLock);
+
   // create audio thread
   s32 prio = GetThreadPriority();
   threadRunning = true;
@@ -101,17 +105,13 @@ bool32 AudioDevice::Init()
                                           THREAD_STACK_SZ, prio,
                                           1, false);
 
-  // init audio thread lock 
-  LightLock_Init(&asyncFileLock);
-  LightLock_Init(&audioThreadLock);
-
   if (!audioThreadHandle) {
     PrintLog(PRINT_NORMAL, "ERROR: failed to init audio thread\n");
   }
 
-  // create event for audio thread 
+  // create event for audio thread
   svcCreateEvent(&audioThreadRequest, RESET_ONESHOT);
-  
+
   // set audio callback (simply triggers audioThreadRequest event)
   ndspSetCallback(AudioCallback, NULL);
 
