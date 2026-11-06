@@ -1,7 +1,7 @@
 BasicInfo:
   Title                   : "Sonic Mania Plus"
   ProductCode             : "CTR-M-SNMA-00"
-  Logo                    : Nintendo
+  Logo                    : Licensed
 
 RomFs:
   # Staging dir handed over by build_dlc_cia.sh ($(APP_ROMFS)). The game only
