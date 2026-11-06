@@ -88,6 +88,7 @@ extern bool32 useDataPack;
 
 #if RETRO_PLATFORM == RETRO_3DS
 extern bool32 useRomfs;
+extern bool32 useEmbeddedRomfs;
 #endif
 
 #if RETRO_REV0U

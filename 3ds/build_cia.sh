@@ -18,7 +18,18 @@ rm -rf out/*
 # make SMDH
 ./bannertool makesmdh -s "$APP_NAME" -l "$APP_NAME" -p "$APP_AUTH" -i ./48x48.png -o out/icon.icn
 
+# When ./romfs/Data exists, enable the RSF RomFs section and hand makerom the staging dir: the CIA then embeds the
+# game's Data folder as the title RomFS and the game runs standalone (no SD files needed).
+RSF_FILE="./SonicMania.rsf"
+ROMFS_OPTS=()
+if [ -d "./romfs/Data" ]; then
+    RSF_FILE="./out/SonicMania_romfs.rsf"
+    sed 's/^#RomFs:/RomFs:/; s/^#  RootPath/  RootPath/' ./SonicMania.rsf > "$RSF_FILE"
+    ROMFS_OPTS=(-DAPP_ROMFS="$(cd ./romfs && pwd)")
+    echo "Embedding RomFS from ./romfs ($(du -sh ./romfs/Data | cut -f1)) ..."
+fi
+
 # build CIA
-./makerom -f cia -o out/SonicMania.cia -DAPP_ENCRYPTED=false -elf "$1" -rsf ./SonicMania.rsf -exefslogo -target t -icon out/icon.icn -banner out/banner.bnr
+./makerom -f cia -o out/SonicMania.cia -DAPP_ENCRYPTED=false -elf "$1" -rsf "$RSF_FILE" "${ROMFS_OPTS[@]}" -exefslogo -target t -icon out/icon.icn -banner out/banner.bnr
 
 echo "Built .cia"

@@ -1052,6 +1052,8 @@ void RSDK::LoadGameConfig()
 
         ReadString(&info, gameVerInfo.gameTitle);
 #if RETRO_PLATFORM == RETRO_3DS
+        if (useEmbeddedRomfs)
+            strcat(gameVerInfo.gameTitle, " (Embedded RomFS)");
         if (useRomfs)
             strcat(gameVerInfo.gameTitle, " (RomFS)");
         else if (!useDataPack)

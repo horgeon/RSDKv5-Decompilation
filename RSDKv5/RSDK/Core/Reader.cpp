@@ -14,6 +14,7 @@ bool32 RSDK::useDataPack = false;
 
 #if RETRO_PLATFORM == RETRO_3DS
 bool32 RSDK::useRomfs = false;
+bool32 RSDK::useEmbeddedRomfs = false;
 const char* romfsLabel = "data";
 #endif
 
@@ -173,17 +174,25 @@ bool32 RSDK::LoadDataPack(const char *filePath, size_t fileOffset, bool32 useBuf
 // referenced in mounting a RomFS from file:
 // https://github.com/ds-sloth/TheXTech3DS/blob/master/libs/AppPath/app_path.cpp#L83-L128
 bool32 RSDK::MountRomFS(const char* filePath) {
+  useRomfs = true;
+
+  // Test for RomFS embedded in the application itself. romfsMountSelf() registers it under label "data:".
+  Result ret = romfsMountSelf(romfsLabel);
+  if (R_SUCCEEDED(ret)) {
+    useDataPack = false;
+    return true;
+  }
+
+  // Fallback for dev setups without a packaged RomFS: a romfs image next to the user files on SD.
   char romfsPath[0x100];
   sprintf_s(romfsPath, sizeof(romfsPath), "%s%s", SKU::userFileDir, filePath);
 
   Handle fd;
 
-  useRomfs = true;
-
   FS_Path archPath = fsMakePath(PATH_EMPTY, "");
   FS_Path fPath    = fsMakePath(PATH_ASCII, romfsPath);
 
-  Result ret = FSUSER_OpenFileDirectly(&fd, ARCHIVE_SDMC, archPath, fPath,
+  ret = FSUSER_OpenFileDirectly(&fd, ARCHIVE_SDMC, archPath, fPath,
                                        FS_OPEN_READ, 0);
   if (ret) {
     useRomfs = false;
