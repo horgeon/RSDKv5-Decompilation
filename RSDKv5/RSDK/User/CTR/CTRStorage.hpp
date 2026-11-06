@@ -6,6 +6,8 @@
 #include "RSDK/User/Dummy/DummyStorage.hpp"
 #endif
 
-struct CTRStorage : DummyUserStorage {};
+struct CTRStorage : DummyUserStorage {
+    bool32 GetUsername(String *name) override;
+};
 
 #endif

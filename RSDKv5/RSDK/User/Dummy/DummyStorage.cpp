@@ -1,4 +1,5 @@
 #if RETRO_REV02
+
 int32 DummyUserStorage::TryAuth()
 {
     if (authStatus == STATUS_CONTINUE) {

@@ -46,7 +46,7 @@ struct DummyUserStorage : UserStorage {
     void StageLoad() { UserStorage::StageLoad(); }
     int32 TryAuth();
     int32 TryInitStorage();
-    bool32 GetUsername(String *name);
+    virtual bool32 GetUsername(String *name);
     bool32 TryLoadUserFile(const char *filename, void *buffer, uint32 size, void (*callback)(int32 status));
     bool32 TrySaveUserFile(const char *filename, void *buffer, uint32 size, void (*callback)(int32 status), bool32 compressed);
     bool32 TryDeleteUserFile(const char *filename, void (*callback)(int32 status));
