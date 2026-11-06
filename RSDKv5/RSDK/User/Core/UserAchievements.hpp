@@ -81,6 +81,11 @@ extern UserAchievements *achievements;
 #include "RSDK/User/NX/NXAchievements.hpp"
 #endif
 
+// 3DS API
+#if RETRO_USERCORE_CTR
+#include "RSDK/User/CTR/CTRAchievements.hpp"
+#endif
+
 inline bool32 GetAchievementsEnabled() { return achievements->enabled; }
 inline void SetAchievementsEnabled(bool32 enabled) { achievements->enabled = enabled; }
 #endif

@@ -30,6 +30,11 @@ namespace SKU
 #include "RSDK/User/NX/NXStats.cpp"
 #endif
 
+// 3DS API
+#if RETRO_USERCORE_CTR
+#include "RSDK/User/CTR/CTRStats.cpp"
+#endif
+
 } // namespace SKU
 } // namespace RSDK
 #endif

@@ -230,6 +230,11 @@ extern UserDBStorage *userDBStorage;
 #include "RSDK/User/NX/NXStorage.hpp"
 #endif
 
+// 3DS API
+#if RETRO_USERCORE_CTR
+#include "RSDK/User/CTR/CTRStorage.hpp"
+#endif
+
 // =======================
 // USER STORAGE
 // =======================

@@ -54,6 +54,11 @@ extern UserStats *stats;
 #include "RSDK/User/NX/NXStats.hpp"
 #endif
 
+// 3DS API
+#if RETRO_USERCORE_CTR
+#include "RSDK/User/CTR/CTRStats.hpp"
+#endif
+
 #endif
 
 // Rev01 ver of TrackStat stuff basically

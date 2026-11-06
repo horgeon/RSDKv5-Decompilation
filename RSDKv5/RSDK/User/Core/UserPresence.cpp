@@ -28,6 +28,11 @@ namespace SKU
 #include "RSDK/User/NX/NXPresence.cpp"
 #endif
 
+// 3DS API
+#if RETRO_USERCORE_CTR
+#include "RSDK/User/CTR/CTRPresence.cpp"
+#endif
+
 } // namespace SKU
 } // namespace RSDK
 

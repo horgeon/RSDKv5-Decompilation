@@ -46,6 +46,11 @@ extern UserRichPresence *richPresence;
 #include "RSDK/User/NX/NXPresence.hpp"
 #endif
 
+// 3DS API
+#if RETRO_USERCORE_CTR
+#include "RSDK/User/CTR/CTRPresence.hpp"
+#endif
+
 inline void SetPresence(int32 id, String *message) { richPresence->SetPresence(id, message); }
 #endif
 

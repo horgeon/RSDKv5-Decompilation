@@ -32,6 +32,7 @@ enum GamePlatforms {
     PLATFORM_PS4,
     PLATFORM_XB1,
     PLATFORM_SWITCH,
+    PLATFORM_CTR,
 
     PLATFORM_DEV = 0xFF,
 };
@@ -207,7 +208,7 @@ enum GameRegions {
 // ============================
 // USER CORE BACKENDS
 // ============================
-#define RETRO_USERCORE_ID (0)
+#define RETRO_USERCORE_ID (6)
 
 #define RETRO_USERCORE_DUMMY (!(RETRO_USERCORE_ID & 0x80)) // bit 7 disables the dummy core stuff if you ever need that for some odd reason
 #define RETRO_USERCORE_STEAM (RETRO_USERCORE_ID == 1)

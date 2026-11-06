@@ -28,6 +28,11 @@ namespace SKU
 #include "RSDK/User/NX/NXAchievements.cpp"
 #endif
 
+// 3DS API
+#if RETRO_USERCORE_CTR
+#include "RSDK/User/CTR/CTRAchievements.cpp"
+#endif
+
 } // namespace SKU
 } // namespace RSDK
 

@@ -30,6 +30,11 @@ namespace SKU
 #include "RSDK/User/NX/NXCore.cpp"
 #endif
 
+// 3DS API
+#if RETRO_USERCORE_CTR
+#include "RSDK/User/CTR/CTRCore.cpp"
+#endif
+
 } // namespace SKU
 } // namespace RSDK
 
@@ -64,6 +69,10 @@ void RSDK::SKU::InitUserCore()
     userCore = InitNXCore();
 #endif
 
+#if RETRO_USERCORE_CTR
+    userCore = InitCTRCore();
+#endif
+
 #if RETRO_USERCORE_DUMMY
     if (!userCore) { // no platform core, so default to dummy funcs
         userCore = dummyCore;
@@ -91,6 +100,8 @@ void RSDK::SKU::InitUserCore()
     gameVerInfo.platform = PLATFORM_XB1;
 #elif RETRO_PLATFORM == RETRO_SWITCH || RETRO_PLATFORM == RETRO_ANDROID
     gameVerInfo.platform = PLATFORM_SWITCH;
+#elif RETRO_PLATFORM == RETRO_3DS
+    gameVerInfo.platform = PLATFORM_CTR;
 #else
     // default to PC (or dev if dev stuff is enabled)
     gameVerInfo.platform = engine.devMenu ? PLATFORM_DEV : PLATFORM_PC;

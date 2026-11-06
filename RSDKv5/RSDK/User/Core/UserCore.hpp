@@ -131,6 +131,11 @@ extern UserCore *userCore;
 #include "RSDK/User/NX/NXCore.hpp"
 #endif
 
+// 3DS API
+#if RETRO_USERCORE_CTR
+#include "RSDK/User/CTR/CTRCore.hpp"
+#endif
+
 #endif
 
 void InitUserCore();

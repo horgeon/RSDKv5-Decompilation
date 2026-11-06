@@ -166,6 +166,11 @@ extern UserLeaderboards *leaderboards;
 #include "RSDK/User/NX/NXLeaderboards.hpp"
 #endif
 
+// 3DS API
+#if RETRO_USERCORE_CTR
+#include "RSDK/User/CTR/CTRLeaderboards.hpp"
+#endif
+
 inline void InitLeaderboards() { leaderboards->InitLeaderboards(); }
 #if RETRO_VER_EGS
 inline bool32 CheckLeaderboardsEnabled() { return leaderboards->CheckLeaderboardsEnabled(); }
