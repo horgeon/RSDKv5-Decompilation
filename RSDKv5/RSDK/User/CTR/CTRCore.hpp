@@ -25,6 +25,7 @@ struct CTRCore : UserCore {
 private:
     Result amStatus;
     Result cfguStatus;
+    Result frdStatus;
 
     bool32 CheckDLCCIAInstalled();
 };

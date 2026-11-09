@@ -40,7 +40,7 @@ CTRCore *InitCTRCore()
 }
 
 CTRCore::CTRCore()
-    : cfguStatus(cfguInit()), amStatus(amInit())
+    : cfguStatus(cfguInit()), amStatus(amInit()), frdStatus(frdInit(true)) // forceUser: open frd:u, not the admin-only frd:a
 {
     if (R_FAILED(cfguStatus)) {
         PrintLog(PRINT_FATAL, "Unable to initialize 3DS CFGU service: %08lx", (unsigned long)cfguStatus);
@@ -49,6 +49,11 @@ CTRCore::CTRCore()
 
     if (R_FAILED(amStatus)) {
         PrintLog(PRINT_FATAL, "Unable to initialize 3DS AM service: %08lx", (unsigned long)amStatus);
+        return;
+    }
+
+    if (R_FAILED(frdStatus)) {
+        PrintLog(PRINT_FATAL, "Unable to initialize 3DS FRD service: %08lx", (unsigned long)frdStatus);
         return;
     }
 
