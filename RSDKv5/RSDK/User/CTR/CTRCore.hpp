@@ -26,6 +26,7 @@ private:
     Result amStatus;
     Result cfguStatus;
     Result frdStatus;
+    Result fsStatus;
 
     bool32 CheckDLCCIAInstalled();
 };

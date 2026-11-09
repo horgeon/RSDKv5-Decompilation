@@ -2,6 +2,10 @@
 
 #include "CacheFiles.cpp"
 
+#if RETRO_PLATFORM == RETRO_3DS
+#include <stdio.h>
+#endif
+
 using namespace RSDK;
 
 uint8_t RSDK::cachesEnabled = 0;
@@ -25,9 +29,43 @@ void RSDK::InitCache(uint8_t cacheFlags) {
     if (staticVarCache) {
       ptr = staticVarCache;
 
-      // read data from decrypted cached file 
+      // read data from decrypted cached file
+#if RETRO_PLATFORM == RETRO_3DS
+      // Save the cache in the save archive. Load the whole file using 3DS functions once at startup and process it
+      // below through a memory file.
+      uint32 staticCacheFileSize =
+          (4 + 2 * sizeof(int32)) * STATIC_VAR_FILE_COUNT + STATIC_VAR_CACHE_SIZE;
+      uint8_t *staticCacheFileData = (uint8_t *)malloc(staticCacheFileSize);
+
+      bool32 staticCacheLoaded =
+          staticCacheFileData && SKU::LoadUserFile("staticcache.bin", staticCacheFileData, staticCacheFileSize);
+
+      if (staticCacheLoaded) {
+        // sanity-check the record table: every ref must land inside the payload
+        // region, otherwise treat the file as corrupt and rebuild from Data.
+        for (int i = 0; i < STATIC_VAR_FILE_COUNT; i++) {
+          uint8_t *rec = &staticCacheFileData[i * (4 + 2 * sizeof(int32))];
+          int32 refOffset = *(int32 *)(rec + 4);
+          int32 refSize   = *(int32 *)(rec + 8);
+
+          if (refOffset < 0 || refSize < 0 || refOffset > STATIC_VAR_CACHE_SIZE - refSize) {
+            staticCacheLoaded = false;
+            break;
+          }
+        }
+      }
+
+      if (staticCacheLoaded)
+        fCache = fmemopen(staticCacheFileData, staticCacheFileSize, "rb");
+      else {
+        if (staticCacheFileData)
+          free(staticCacheFileData);
+        fCache = NULL;
+      }
+#else
       sprintf_s(pathBuf, sizeof(pathBuf), "%sstaticcache.bin", SKU::userFileDir);
       fCache = fOpen(pathBuf, "rb");
+#endif
       if (fCache) {
         for (int i = 0; i < STATIC_VAR_FILE_COUNT; i++) {
           fRead(staticVarRefs[i].hash, sizeof(uint8_t), 4, fCache);
@@ -39,9 +77,22 @@ void RSDK::InitCache(uint8_t cacheFlags) {
 
         fRead(staticVarCache, sizeof(uint8_t), STATIC_VAR_CACHE_SIZE, fCache);
         fClose(fCache);
+#if RETRO_PLATFORM == RETRO_3DS
+        free(staticCacheFileData);
+        staticCacheFileData = NULL;
+#endif
       } else {
         // if not, read from Data file/folder and save whole thing to user directory
+#if RETRO_PLATFORM == RETRO_3DS
+        // Save the cache in the save archive. Load the whole file using 3DS unctions once at startup and process it
+        // below through a memory file.
+        char *staticCacheBlob      = NULL;
+        size_t staticCacheBlobSize = 0;
+
+        fCache = open_memstream(&staticCacheBlob, &staticCacheBlobSize);
+#else
         fCache = fOpen(pathBuf, "wb+");
+#endif
 
         FileInfo info;
         InitFileInfo(&info);
@@ -77,6 +128,11 @@ void RSDK::InitCache(uint8_t cacheFlags) {
         if (fCache) {
           fWrite((void*) staticVarCache, sizeof(uint8_t), STATIC_VAR_CACHE_SIZE, fCache);
           fClose(fCache);
+#if RETRO_PLATFORM == RETRO_3DS
+          // Persist the freshly rebuilt blob to the save archive.
+          SKU::SaveUserFile("staticcache.bin", staticCacheBlob, (uint32)staticCacheBlobSize);
+          free(staticCacheBlob);
+#endif
         }
       }
 
@@ -99,8 +155,38 @@ void RSDK::InitCache(uint8_t cacheFlags) {
           PrintLog(PRINT_NORMAL, "Failed to allocate cache for sprites");
       }
 
+#if RETRO_PLATFORM == RETRO_3DS
+      // Save the cache in the save archive. Load the whole file using 3DS functions once at startup and process it
+      // below through a memory file.
+      uint32 sbinCacheFileSize = sizeof(int32) * SPRITEBIN_FILE_COUNT + SPRITEBIN_CACHE_SIZE;
+      uint8_t *sbinCacheFileData = (uint8_t *)malloc(sbinCacheFileSize);
+
+      bool32 sbinCacheLoaded =
+          sbinCacheFileData && SKU::LoadUserFile("sbincache.bin", sbinCacheFileData, sbinCacheFileSize);
+
+      if (sbinCacheLoaded) {
+        // sanity-check the record table: ref offsets must stay within the payload
+        for (int i = 0; i < SPRITEBIN_FILE_COUNT; i++) {
+          int32 refOffset = *(int32 *)(sbinCacheFileData + i * sizeof(int32));
+
+          if (refOffset < 0 || refOffset > SPRITEBIN_CACHE_SIZE) {
+            sbinCacheLoaded = false;
+            break;
+          }
+        }
+      }
+
+      if (sbinCacheLoaded)
+        fCache = fmemopen(sbinCacheFileData, sbinCacheFileSize, "rb");
+      else {
+        if (sbinCacheFileData)
+          free(sbinCacheFileData);
+        fCache = NULL;
+      }
+#else
       sprintf_s(pathBuf, sizeof(pathBuf), "%ssbincache.bin", SKU::userFileDir);
       fCache = fOpen(pathBuf, "rb");
+#endif
 
       if (fCache) {
         for (int i = 0; i < SPRITEBIN_FILE_COUNT; i++) {
@@ -112,8 +198,20 @@ void RSDK::InitCache(uint8_t cacheFlags) {
 
         fRead(spriteBinCache, sizeof(uint8_t), SPRITEBIN_CACHE_SIZE, fCache);
         fClose(fCache);
+#if RETRO_PLATFORM == RETRO_3DS
+        free(sbinCacheFileData);
+        sbinCacheFileData = NULL;
+#endif
       } else {
+#if RETRO_PLATFORM == RETRO_3DS
+        // Stage the whole cache file in memory then flush it into the save archive.
+        char *sbinCacheBlob      = NULL;
+        size_t sbinCacheBlobSize = 0;
+
+        fCache = open_memstream(&sbinCacheBlob, &sbinCacheBlobSize);
+#else
         fCache = fOpen(pathBuf, "wb+");
+#endif
 
         char* strPtr;
         int sprSheetRef = 0;
@@ -147,6 +245,11 @@ void RSDK::InitCache(uint8_t cacheFlags) {
         if (fCache) {
           fWrite((void*) spriteBinCache, sizeof(uint8_t), SPRITEBIN_CACHE_SIZE, fCache);
           fClose(fCache);
+#if RETRO_PLATFORM == RETRO_3DS
+          // Persist cache to the save archive.
+          SKU::SaveUserFile("sbincache.bin", sbinCacheBlob, (uint32)sbinCacheBlobSize);
+          free(sbinCacheBlob);
+#endif
         }
       }
 

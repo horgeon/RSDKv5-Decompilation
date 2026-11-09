@@ -1,5 +1,10 @@
 #include "RSDK/Core/RetroEngine.hpp"
 
+#include <codecvt>
+#include <locale>
+
+#include <3ds.h>
+
 #if RETRO_REV02
 
 // ====================
@@ -1034,6 +1039,13 @@ bool32 RSDK::SKU::LoadUserFile(const char *filename, void *buffer, uint32 bufSiz
     if (preLoadSaveFileCB)
         preLoadSaveFileCB();
 
+#if RETRO_PLATFORM == RETRO_3DS
+    bool32 success = CTRLoadUserFile(filename, buffer, bufSize);
+    if (postLoadSaveFileCB)
+        postLoadSaveFileCB();
+    return success;
+#endif
+
     char fullFilePath[0x400];
 #if RETRO_USE_MOD_LOADER
     if (strlen(customUserFileDir))
@@ -1075,6 +1087,13 @@ bool32 RSDK::SKU::SaveUserFile(const char *filename, void *buffer, uint32 bufSiz
     if (preLoadSaveFileCB)
         preLoadSaveFileCB();
 
+#if RETRO_PLATFORM == RETRO_3DS
+    bool32 success = CTRSaveUserFile(filename, buffer, bufSize);
+    if (postLoadSaveFileCB)
+        postLoadSaveFileCB();
+    return success;
+#endif
+
     char fullFilePath[0x400];
 #if RETRO_USE_MOD_LOADER
     if (strlen(customUserFileDir))
@@ -1108,6 +1127,13 @@ bool32 RSDK::SKU::DeleteUserFile(const char *filename)
 {
     if (preLoadSaveFileCB)
         preLoadSaveFileCB();
+
+#if RETRO_PLATFORM == RETRO_3DS
+    bool32 success = CTRDeleteUserFile(filename);
+    if (postLoadSaveFileCB)
+        postLoadSaveFileCB();
+    return success;
+#endif
 
     char fullFilePath[0x400];
 #if RETRO_USE_MOD_LOADER
@@ -1170,7 +1196,8 @@ void RSDK::SKU::InitUserDirectory()
 
 #elif RETRO_PLATFORM == RETRO_3DS
 
-    // TODO: don't hardcode this directory
+    // Root of the game's SD folder, where the engine will find mods and possibly data files.
+    // TODO: replace this with extdata archive?
     SKU::SetUserFileCallbacks("/3ds/SonicMania/", NULL, NULL);
 
 #else

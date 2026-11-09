@@ -6,5 +6,6 @@
 #include "RSDK/User/Dummy/DummyAchievements.hpp"
 #endif
 
+// 3DS has no achievements support, use the default/Dummy implementation.
 struct CTRAchievements : DummyAchievements {};
 #endif

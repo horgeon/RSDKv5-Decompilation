@@ -174,7 +174,7 @@ AccessControlInfo:
 
 
 SystemControlInfo:
-  SaveDataSize: 0KB # Change if the app uses savedata
+  SaveDataSize: 16MB
   RemasterVersion: 2
   StackSize: 0x40000
 

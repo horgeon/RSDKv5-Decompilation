@@ -36,12 +36,20 @@ CTRCore *InitCTRCore()
     }
     userStorage = new CTRStorage;
 
+    // Open the save archive right away, settings will be read shortly after.
+    userStorage->TryInitStorage();
+
     return core;
 }
 
 CTRCore::CTRCore()
-    : cfguStatus(cfguInit()), amStatus(amInit()), frdStatus(frdInit(true)) // forceUser: open frd:u, not the admin-only frd:a
+    : fsStatus(fsInit()), cfguStatus(cfguInit()), amStatus(amInit()), frdStatus(frdInit(true)) // forceUser: open frd:u, not the admin-only frd:a
 {
+    if (R_FAILED(fsStatus)) {
+        PrintLog(PRINT_FATAL, "Unable to initialize 3DS FS service: %08lx", (unsigned long)fsStatus);
+        return;
+    }
+
     if (R_FAILED(cfguStatus)) {
         PrintLog(PRINT_FATAL, "Unable to initialize 3DS CFGU service: %08lx", (unsigned long)cfguStatus);
         return;

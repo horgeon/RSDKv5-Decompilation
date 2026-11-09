@@ -297,7 +297,12 @@ void RSDK::LoadSettingsINI()
     char pathBuffer[0x100];
     sprintf_s(pathBuffer, sizeof(pathBuffer), "%sSettings.ini", SKU::userFileDir);
 
+#if RETRO_PLATFORM == RETRO_3DS
+    // Settings.ini lives in the title save archive.
+    dictionary *ini = iniparser_load("save:/Settings.ini");
+#else
     dictionary *ini = iniparser_load(pathBuffer);
+#endif
 
     int32 defaultKeyMaps[PLAYER_COUNT + 1][RSDK_KEY_MAX] = {
         { KEYMAP_NO_MAPPING, KEYMAP_NO_MAPPING, KEYMAP_NO_MAPPING, KEYMAP_NO_MAPPING, KEYMAP_NO_MAPPING, KEYMAP_NO_MAPPING, KEYMAP_NO_MAPPING,
@@ -323,6 +328,7 @@ void RSDK::LoadSettingsINI()
         engine.devMenu = true;
 
 #if RETRO_PLATFORM == RETRO_3DS
+        // Data may come from embedded RomFS: in this case, the path is ignored. We can still pass it as it has no impact.
         if (MountRomFS(iniparser_getstring(ini, "Game:romfsFile", "Data.romfs")) ||
             LoadDataPack(iniparser_getstring(ini, "Game:dataFile", "Data.rsdk"), 0, useBuffer))
           engine.devMenu = iniparser_getboolean(ini, "Game:devMenu", false);
@@ -592,6 +598,7 @@ void RSDK::LoadSettingsINI()
 
         SaveSettingsINI(true);
 #if RETRO_PLATFORM == RETRO_3DS
+        // Data may come from embedded RomFS: in this case, the path is ignored. We can still pass it as it has no impact.
         engine.devMenu = false;
         if (!MountRomFS("Data.romfs"))
           LoadDataPack("Data.rsdk", 0, useBuffer);
@@ -616,8 +623,22 @@ void RSDK::SaveSettingsINI(bool32 writeToFile)
         char pathBuffer[0x100];
         sprintf_s(pathBuffer, sizeof(pathBuffer), "%sSettings.ini", SKU::userFileDir);
 
+#if RETRO_PLATFORM == RETRO_3DS
+        // Settings.ini lives in the title save archive. Build file in memory, then write using CTRStorage functions
+        // (handles commit).
+        dictionary *ini = iniparser_load("save:/Settings.ini");
+
+        char *iniMemory      = NULL;
+        size_t iniMemorySize = 0;
+        FileIO *file         = open_memstream(&iniMemory, &iniMemorySize);
+        if (!file) {
+            PrintLog(PRINT_ERROR, "Failed to create in-memory stream for Settings.ini");
+            return;
+        }
+#else
         dictionary *ini = iniparser_load(pathBuffer);
         FileIO *file    = fOpen(pathBuffer, "wb");
+#endif
 
         // ================
         // SIGNATURE
@@ -778,6 +799,13 @@ void RSDK::SaveSettingsINI(bool32 writeToFile)
 
         iniparser_freedict(ini);
         fClose(file);
+#if RETRO_PLATFORM == RETRO_3DS
+        if (iniMemory) {
+            // Push the text into the save archive (including the terminator so readers see a string)
+            SKU::SaveUserFile("Settings.ini", iniMemory, (uint32)(iniMemorySize + 1));
+            free(iniMemory);
+        }
+#endif
     }
 
 #if RETRO_USE_MOD_LOADER
