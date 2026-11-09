@@ -2,13 +2,32 @@
 
 #if RETRO_REV02
 
-#if !RETRO_USERCORE_DUMMY
-#include "RSDK/User/Dummy/DummyCore.hpp"
-#endif
+#include <3ds.h>
 
-struct CTRCore : DummyCore {};
+struct CTRCore : UserCore {
+    CTRCore();
+    ~CTRCore() override;
+
+    void StageLoad();
+    bool32 CheckFocusLost();
+    int32 GetUserLanguage();
+    int32 GetUserRegion();
+    int32 GetUserPlatform();
+    bool32 GetConfirmButtonFlip();
+    void LaunchManual();
+    bool32 ShowExtensionOverlay(int32 overlay);
+    void ExitGame();
+    int32 GetDefaultGamepadType();
+    bool32 IsOverlayEnabled(uint32 overlay) {
+        return false;
+    }
+
+private:
+    Result cfguStatus;
+};
 
 extern CTRCore *ctrCore;
 
 CTRCore *InitCTRCore();
+
 #endif

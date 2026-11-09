@@ -1,5 +1,8 @@
 #if RETRO_REV02
 #include "CTRCore.hpp"
+#include "CTRUtils.hpp"
+// CMake does not acutally include platform abstractions, so we have to do it ourself.
+#include "CTRUtils.cpp"
 
 CTRCore *ctrCore = NULL;
 
@@ -36,4 +39,119 @@ CTRCore *InitCTRCore()
     return core;
 }
 
+CTRCore::CTRCore()
+    : cfguStatus(cfguInit())
+{
+    if (R_FAILED(cfguStatus)) {
+        PrintLog(PRINT_FATAL, "Unable to initialize 3DS CFGU service: %08lx", (unsigned long)cfguStatus);
+        return;
+    }
+
+    // Are Sonic Mania Plus features enabled? No.
+    values[0] = false;
+}
+
+CTRCore::~CTRCore()
+{
+    frdExit();
+    cfguExit();
+    amExit();
+}
+
+void CTRCore::StageLoad()
+{
+    UserCore::StageLoad();
+
+    // Are Sonic Mania Plus features enabled?
+    AddViewableVariable("Ext <PLUS>", &values[0], VIEWVAR_BOOL, false, true);
+}
+
+bool32 CTRCore::CheckFocusLost() {
+    return focusState != 0;
+}
+
+int32 CTRCore::GetUserLanguage()
+{
+    u8 language;
+
+    Result result = CFGU_GetSystemLanguage(&language);
+    if (R_FAILED(result)) {
+        return LANGUAGE_EN;
+    }
+
+    switch (language) {
+        case CFG_LANGUAGE_JP: return LANGUAGE_JP;
+        case CFG_LANGUAGE_EN: return LANGUAGE_EN;
+        case CFG_LANGUAGE_FR: return LANGUAGE_FR;
+        case CFG_LANGUAGE_DE: return LANGUAGE_GE;
+        case CFG_LANGUAGE_IT: return LANGUAGE_IT;
+        case CFG_LANGUAGE_ES: return LANGUAGE_SP;
+        case CFG_LANGUAGE_ZH: return LANGUAGE_SC;
+        case CFG_LANGUAGE_KO: return LANGUAGE_KO;
+        case CFG_LANGUAGE_TW: return LANGUAGE_TC;
+        default: PrintLog(PRINT_POPUP, "Unsupported system language: %u", language); break;
+    }
+
+    return LANGUAGE_EN;
+}
+
+int32 CTRCore::GetUserRegion()
+{
+    u8 region = CFG_REGION_USA;
+
+    Result result = CFGU_SecureInfoGetRegion(&region);
+    if (R_FAILED(result)) {
+        return REGION_US;
+    }
+
+    switch (region) {
+        case CFG_REGION_JPN: return REGION_JP;
+        case CFG_REGION_USA: return REGION_US;
+        case CFG_REGION_EUR: return REGION_EU;
+        case CFG_REGION_AUS: return REGION_EU;
+        case CFG_REGION_CHN: return REGION_JP;
+        case CFG_REGION_KOR: return REGION_JP;
+        case CFG_REGION_TWN: return REGION_JP;
+    }
+
+    return REGION_US;
+}
+
+int32 CTRCore::GetUserPlatform() {
+    return PLATFORM_CTR;
+}
+
+bool32 CTRCore::GetConfirmButtonFlip() {
+    return engine.confirmFlip;
+}
+
+void CTRCore::LaunchManual()
+{
+    // LaunchManual() just opens the Mania manual URL, that's it.
+    // URLs copied straight from Switch implementation.
+    const char *manualURL = "";
+    switch (curSKU.language) {
+        default:
+        case LANGUAGE_EN: manualURL = "https://www.sonicthehedgehog.com/mania/manual/en/"; break;
+        case LANGUAGE_FR: manualURL = "https://www.sonicthehedgehog.com/mania/manual/fr/"; break;
+        case LANGUAGE_IT: manualURL = "https://www.sonicthehedgehog.com/mania/manual/it/"; break;
+        case LANGUAGE_GE: manualURL = "https://www.sonicthehedgehog.com/mania/manual/de/"; break;
+        case LANGUAGE_SP: manualURL = "https://www.sonicthehedgehog.com/mania/manual/es/"; break;
+        case LANGUAGE_JP: manualURL = "https://manual.sega.jp/sonicmania/"; break;
+        case LANGUAGE_KO: manualURL = "https://manual.sega.jp/sonicmania/kr/"; break;
+        case LANGUAGE_SC: manualURL = "https://manual.sega.jp/sonicmania/ct/"; break;
+        case LANGUAGE_TC: manualURL = "https://www.sonicthehedgehog.com/mania/manual/en/"; break;
+    }
+
+    launch_browser(manualURL);
+}
+
+bool32 CTRCore::ShowExtensionOverlay(int32 overlay)
+{
+    return false;
+}
+
+void CTRCore::ExitGame() { RenderDevice::isRunning = false; }
+
+int32 CTRCore::GetDefaultGamepadType() { return (DEVICE_API_NONE << 16) | (DEVICE_TYPE_CONTROLLER << 8) | (0 << 0); }
 #endif
