@@ -3,6 +3,20 @@
 #include <stdio.h>
 
 /*
+ * Check if a title is installed on a specific media type.
+ * @param media The media type to check (e.g., MEDIATYPE_NAND, MEDIATYPE_SD).
+ * @param tid The title ID to check for.
+ * @return true if the title is installed, false otherwise.
+ */
+bool title_installed_on(FS_MediaType media, u64 tid);
+/**
+ * Calculate the title ID for a specific DLC.
+ * @param uniqueId The unique ID of the DLC.
+ * @return The title ID for the DLC.
+ */
+u64 dlc_title_id(u32 uniqueId);
+
+/*
  * Display an error box with a specific message.
  * @param u8Message The message to display (UTF-8 encoded).
  */

@@ -1,0 +1,24 @@
+BasicInfo:
+  Title                   : "Sonic Mania Plus"
+  ProductCode             : "CTR-M-SNMA-00"
+  Logo                    : Nintendo
+
+RomFs:
+  # Staging dir handed over by build_dlc_cia.sh ($(APP_ROMFS)). The game only
+  # checks that the DLC title is installed, it never opens this content.
+  RootPath                : $(APP_ROMFS)
+
+TitleInfo:
+  Category                : AddOnContents
+  # Must match the main application's UniqueId.
+  UniqueId                : $(APP_UNIQUE_ID)
+
+Option:
+  UseOnSD                 : true # DLC installs to the SD card
+  FreeProductCode         : true
+  EnableCrypt             : $(APP_ENCRYPTED)
+  EnableCompress          : false
+
+AccessControlInfo:
+  CoreVersion                   : 1
+  DescVersion                   : 0

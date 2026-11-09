@@ -23,7 +23,10 @@ struct CTRCore : UserCore {
     }
 
 private:
+    Result amStatus;
     Result cfguStatus;
+
+    bool32 CheckDLCCIAInstalled();
 };
 
 extern CTRCore *ctrCore;

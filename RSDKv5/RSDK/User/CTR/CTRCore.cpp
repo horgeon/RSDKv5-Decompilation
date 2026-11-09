@@ -40,15 +40,24 @@ CTRCore *InitCTRCore()
 }
 
 CTRCore::CTRCore()
-    : cfguStatus(cfguInit())
+    : cfguStatus(cfguInit()), amStatus(amInit())
 {
     if (R_FAILED(cfguStatus)) {
         PrintLog(PRINT_FATAL, "Unable to initialize 3DS CFGU service: %08lx", (unsigned long)cfguStatus);
         return;
     }
 
-    // Are Sonic Mania Plus features enabled? No.
+    if (R_FAILED(amStatus)) {
+        PrintLog(PRINT_FATAL, "Unable to initialize 3DS AM service: %08lx", (unsigned long)amStatus);
+        return;
+    }
+
+    // Are Sonic Mania Plus features enabled? Check DLC once, as CheckDLC runs in a hot loop. We check for a DLC title
+    // to enable it or not.
     values[0] = false;
+    if (CheckDLCCIAInstalled()) {
+        values[0] = true;
+    }
 }
 
 CTRCore::~CTRCore()
@@ -146,8 +155,37 @@ void CTRCore::LaunchManual()
     launch_browser(manualURL);
 }
 
+bool32 CTRCore::CheckDLCCIAInstalled()
+{
+    u64 tid          = dlc_title_id(0x3082);
+    bool isInstalled = title_installed_on(MEDIATYPE_NAND, tid) || title_installed_on(MEDIATYPE_SD, tid);
+
+    PrintLog(PRINT_NORMAL, "DLC check for title ID %016llX: %s", tid, isInstalled ? "installed" : "not installed");
+
+    return isInstalled;
+}
+
 bool32 CTRCore::ShowExtensionOverlay(int32 overlay)
 {
+    if(overlay != 0) {
+        error_box_format(false, false, "No 3DS extension overlay is available: %d", overlay);
+    }
+
+    const char *message = "";
+    switch (curSKU.language) {
+        default:
+        case LANGUAGE_EN: message = "To enjoy Sonic Mania Plus, install the DLC package. More information is available on the download page."; break;
+        case LANGUAGE_JP: message = "Sonic Mania Plus をお楽しみになるには、DLC パッケージをインストールしてください。詳しくはダウンロードページをご覧ください。"; break;
+        case LANGUAGE_FR: message = "Pour profiter de Sonic Mania Plus, installez le paquet DLC. Plus d'informations sur la page de téléchargement."; break;
+        case LANGUAGE_IT: message = "Per usufruire di Sonic Mania Plus, installa il pacchetto DLC. Ulteriori informazioni sono disponibili nella pagina di download."; break;
+        case LANGUAGE_GE: message = "Um Sonic Mania Plus genießen zu können, installiere das DLC-Paket. Weitere Informationen findest du auf der Downloadseite."; break;
+        case LANGUAGE_SP: message = "Para disfrutar de Sonic Mania Plus, instala el paquete DLC. Más información en la página de descarga."; break;
+        case LANGUAGE_KO: message = "소닉 마니아 플러스의 기능을 이용하려면 DLC 패키지를 설치해야 합니다. 자세한 내용은 다운로드 페이지를 확인해 주세요."; break;
+        case LANGUAGE_SC: message = "要享受 Sonic Mania Plus，请安装 DLC 包。更多信息请见下载页面。"; break;
+        case LANGUAGE_TC: message = "要享受 Sonic Mania Plus，請安裝 DLC 套件。更多資訊請見下載頁面。"; break;
+    }
+
+    error_box(true, false, message);
     return false;
 }
 
