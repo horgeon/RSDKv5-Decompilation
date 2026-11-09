@@ -16,7 +16,7 @@ using namespace RSDK;
 
 bool32 RSDK::engineDebugMode = true;
 bool32 RSDK::useEndLine      = true;
-char RSDK::outputString[0x300];
+char RSDK::outputString[0x400];
 
 #if RETRO_REV02
 int32 RSDK::viewableVarCount = 0;
@@ -35,13 +35,14 @@ void RSDK::PrintLog(int32 mode, const char *message, ...)
     }
 #endif
 
-#ifndef RETRO_DISABLE_LOG
+#if !RETRO_DISABLE_LOG
     if (engineDebugMode) {
         // make the full string
+        char tmpStr[0x400];
         va_list args;
         va_start(args, message);
 
-        vsnprintf(outputString, sizeof(outputString), message, args);
+        vsnprintf(tmpStr, sizeof(tmpStr), message, args);
         if (useEndLine)
             snprintf(outputString, 0x400, "%s\n", outputString);
         va_end(args);
@@ -133,7 +134,7 @@ void RSDK::PrintLog(int32 mode, const char *message, ...)
         sprintf_s(logPath, sizeof(logPath), "%slog.txt", SKU::userFileDir);
         FileIO *file = fOpen(logPath, "a");
         if (file) {
-            fWrite(&outputString, 1, strlen(outputString), file);
+            fWrite(outputString, 1, strlen(outputString), file);
             fClose(file);
         }
 #endif
@@ -342,8 +343,57 @@ void RSDK::CloseDevMenu()
     sceneInfo.state           = devMenu.sceneState;
 #endif
 
+#if RETRO_USE_MOD_LOADER
+    if (devMenu.modMenuCalled) {
+        devMenu.modMenuCalled = false;
+
+        if (!CheckValidScene()) {
+            sceneInfo.activeCategory = 0;
+            sceneInfo.listPos        = 0;
+        }
+
+#if RETRO_REV0U
+        switch (engine.version) {
+            default: break;
+            case 5: LoadScene(); break;
+            case 4:
+            case 3:
+                RSDK::Legacy::ResetCurrentStageFolder();
+                RSDK::Legacy::stageMode = RSDK::Legacy::STAGEMODE_LOAD;
+                break;
+        }
+#else
+        LoadScene();
+#endif
+    }
+#endif
+
     ResumeSound();
 }
+
+#if RETRO_USE_MOD_LOADER
+void RSDK::OpenModMenu()
+{
+    LoadMods(true); // reload our mod list real quick
+    if (modList.size() != 0) {
+        OpenDevMenu();
+        devMenu.state         = DevMenu_ModsMenu;
+        devMenu.modMenuCalled = true;
+    }
+    else {
+#if RETRO_REV0U
+        switch (engine.version) {
+            default: break;
+            case 5: LoadScene(); break;
+            case 4:
+            case 3: RSDK::Legacy::stageMode = RSDK::Legacy::STAGEMODE_LOAD; break;
+        }
+#else
+        LoadScene();
+#endif
+    }
+}
+#endif
 
 void RSDK::DevMenu_MainMenu()
 {
@@ -2052,6 +2102,9 @@ void RSDK::DevMenu_ModsMenu()
             engine.version = devMenu.startingVersion;
         }
 #endif
+
+        if (devMenu.modMenuCalled)
+            CloseDevMenu();
     }
 }
 #endif

@@ -31,7 +31,7 @@ enum TouchCornerButtons {
 
 extern bool32 engineDebugMode;
 extern bool32 useEndLine;
-extern char outputString[0x300];
+extern char outputString[0x400];
 
 void PrintLog(int32 mode, const char *message, ...);
 
@@ -115,6 +115,7 @@ struct DevMenu {
 #if RETRO_USE_MOD_LOADER
     bool32 modsChanged;
     uint8 startingVersion;
+    bool32 modMenuCalled;
 #if RETRO_REV0U
     int32 playerListPos;
 #endif
@@ -143,6 +144,10 @@ void DevMenu_PlayerSelectMenu();
 
 void OpenDevMenu();
 void CloseDevMenu();
+
+#if RETRO_USE_MOD_LOADER
+void OpenModMenu();
+#endif
 
 void FormatDevString(int32 x, int32 y, int32 align, uint32 color, 
                       const char* string, ...);

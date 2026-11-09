@@ -78,6 +78,8 @@ private:
 
     static void SetLinear(bool32 linear);
 
+    static GLFWwindow *CreateGLFWWindow(void);
+
 #if VK_DEBUG
     static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                                                         VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -165,7 +167,7 @@ private:
     static ShaderConstants *uniformMap;
 
     static VkDescriptorPool descriptorPool;
-    static VkDescriptorSet descriptorSet;
+    static VkDescriptorSet descriptorSet[SCREEN_COUNT];
 
     static VkRenderPass renderPass;
     static VkDescriptorSetLayout setLayout;

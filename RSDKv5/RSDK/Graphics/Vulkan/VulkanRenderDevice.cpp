@@ -135,7 +135,7 @@ VkDeviceMemory RenderDevice::uniformBufferMemory;
 RenderDevice::ShaderConstants *RenderDevice::uniformMap;
 
 VkDescriptorPool RenderDevice::descriptorPool;
-VkDescriptorSet RenderDevice::descriptorSet;
+VkDescriptorSet RenderDevice::descriptorSet[SCREEN_COUNT];
 
 VkRenderPass RenderDevice::renderPass;
 VkDescriptorSetLayout RenderDevice::setLayout;
@@ -183,17 +183,14 @@ VkPipelineColorBlendAttachmentState colorBlendAttachment;
 VkPipelineColorBlendStateCreateInfo colorBlending;
 VkPipelineMultisampleStateCreateInfo multisampleInfo;
 
-bool RenderDevice::Init()
+// Creates a window using the video settings
+GLFWwindow *RenderDevice::CreateGLFWWindow(void)
 {
-    glfwInit();
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-
-    if (!videoSettings.bordered)
-        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
-
+    GLFWwindow *win;
     GLFWmonitor *monitor = NULL;
     int32 w, h;
+
+    glfwWindowHint(GLFW_DECORATED, videoSettings.bordered);
 
     if (videoSettings.windowed) {
         w = videoSettings.windowWidth;
@@ -211,18 +208,51 @@ bool RenderDevice::Init()
         h       = videoSettings.fsHeight;
     }
 
-    window = glfwCreateWindow(w, h, gameVerInfo.gameTitle, monitor, NULL);
-    if (!window) {
+    win = glfwCreateWindow(w, h, gameVerInfo.gameTitle, monitor, NULL);
+    if (!win) {
         PrintLog(PRINT_NORMAL, "ERROR: [GLFW] window creation failed");
-        return false;
+        return NULL;
     }
+    if (videoSettings.windowed) {
+        // Center the window
+        monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+        int x, y;
+        glfwGetMonitorPos(monitor, &x, &y);
+        // Get scaling for HiDPI screens
+        float xscale, yscale;
+        glfwGetMonitorContentScale(monitor, &xscale, &yscale);
+        int xpos = x + (mode->width - (int)((float)videoSettings.windowWidth * xscale)) / 2;
+        int ypos = y + (mode->height - (int)((float)videoSettings.windowHeight * yscale)) / 2;
+        glfwSetWindowPos(win, xpos, ypos);
+    }
+    glfwShowWindow(win);
     PrintLog(PRINT_NORMAL, "w: %d h: %d windowed: %d", w, h, videoSettings.windowed);
 
-    glfwSetKeyCallback(window, ProcessKeyEvent);
+    glfwSetKeyCallback(win, ProcessKeyEvent);
+    glfwSetMouseButtonCallback(win, ProcessMouseEvent);
+    glfwSetWindowFocusCallback(win, ProcessFocusEvent);
+    glfwSetWindowMaximizeCallback(win, ProcessMaximizeEvent);
+
+    return win;
+}
+
+bool RenderDevice::Init()
+{
+    glfwInit();
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE); // HiDPI scaling support
+#if GLFW_VERSION_MAJOR >= 3 && GLFW_VERSION_MINOR >= 4
+    // Disable framebuffer scaling which (surprisingly) makes the framebuffer scale correctly on Wayland
+    glfwWindowHint(GLFW_SCALE_FRAMEBUFFER, GLFW_FALSE);
+#endif
+
+    if ((window = CreateGLFWWindow()) == NULL)
+        return false;
+
     glfwSetJoystickCallback(ProcessJoystickEvent);
-    glfwSetMouseButtonCallback(window, ProcessMouseEvent);
-    glfwSetWindowFocusCallback(window, ProcessFocusEvent);
-    glfwSetWindowMaximizeCallback(window, ProcessMaximizeEvent);
 
     if (!SetupRendering() || !AudioDevice::Init())
         return false;
@@ -404,7 +434,7 @@ bool RenderDevice::SetupRendering()
 
     GetDisplays();
 
-    descriptorSet = VK_NULL_HANDLE;
+    descriptorSet[0] = VK_NULL_HANDLE;
 
     if (!InitGraphicsAPI() || !InitShaders())
         return false;
@@ -566,7 +596,8 @@ bool RenderDevice::InitGraphicsAPI()
     VkExtent2D pickedExtent         = currentSwapDetails.capabilities.currentExtent;
 
     for (const auto &availableFormat : currentSwapDetails.formats) {
-        if (availableFormat.format == VK_FORMAT_R8G8B8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+        if ((availableFormat.format == VK_FORMAT_R8G8B8_UNORM || availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM)
+            && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
             pickedFormat = availableFormat;
             break;
         }
@@ -1096,15 +1127,15 @@ bool RenderDevice::InitGraphicsAPI()
     //! CREATE DESCRIPTOR POOL
     VkDescriptorPoolSize poolSizes[] = { {}, {} };
     poolSizes[0].type                = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[0].descriptorCount     = 1;
+    poolSizes[0].descriptorCount     = SCREEN_COUNT;
     poolSizes[1].type                = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[1].descriptorCount     = 1;
+    poolSizes[1].descriptorCount     = SCREEN_COUNT;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = 2;
     poolInfo.pPoolSizes    = poolSizes;
-    poolInfo.maxSets       = 1;
+    poolInfo.maxSets       = SCREEN_COUNT;
     poolInfo.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
     if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
@@ -1382,7 +1413,7 @@ bool RenderDevice::ProcessEvents()
     return false;
 }
 
-VkWriteDescriptorSet descriptorWrites[2];
+VkWriteDescriptorSet descriptorWrites[SCREEN_COUNT][2];
 
 void RenderDevice::FlipScreen()
 {
@@ -1398,6 +1429,44 @@ void RenderDevice::FlipScreen()
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         PrintLog(PRINT_NORMAL, "[VK] Failed to acquire swapchain image");
         return;
+    }
+
+    // Update descriptor textures before the render pass
+    switch (videoSettings.screenCount) {
+        case 0:
+            imageInfo.imageView = imageTexture.view;
+            vkUpdateDescriptorSets(device, 2, descriptorWrites[0], 0, nullptr);
+            break;
+        case 1:
+            imageInfo.imageView = screenTextures[0].view;
+            vkUpdateDescriptorSets(device, 2, descriptorWrites[0], 0, nullptr);
+            break;
+        case 2:
+            imageInfo.imageView = screenTextures[0].view;
+            vkUpdateDescriptorSets(device, 2, descriptorWrites[0], 0, nullptr);
+            imageInfo.imageView = screenTextures[1].view;
+            vkUpdateDescriptorSets(device, 2, descriptorWrites[1], 0, nullptr);
+            break;
+#if RETRO_REV02
+        case 3:
+            imageInfo.imageView = screenTextures[0].view;
+            vkUpdateDescriptorSets(device, 2, descriptorWrites[0], 0, nullptr);
+            imageInfo.imageView = screenTextures[1].view;
+            vkUpdateDescriptorSets(device, 2, descriptorWrites[1], 0, nullptr);
+            imageInfo.imageView = screenTextures[2].view;
+            vkUpdateDescriptorSets(device, 2, descriptorWrites[2], 0, nullptr);
+            break;
+        case 4:
+            imageInfo.imageView = screenTextures[0].view;
+            vkUpdateDescriptorSets(device, 2, descriptorWrites[0], 0, nullptr);
+            imageInfo.imageView = screenTextures[1].view;
+            vkUpdateDescriptorSets(device, 2, descriptorWrites[1], 0, nullptr);
+            imageInfo.imageView = screenTextures[2].view;
+            vkUpdateDescriptorSets(device, 2, descriptorWrites[2], 0, nullptr);
+            imageInfo.imageView = screenTextures[3].view;
+            vkUpdateDescriptorSets(device, 2, descriptorWrites[3], 0, nullptr);
+            break;
+#endif
     }
 
     vkResetCommandBuffer(commandBuffer, 0);
@@ -1462,17 +1531,13 @@ void RenderDevice::FlipScreen()
 #else
             startVert = 18;
 #endif
-            imageInfo.imageView = imageTexture.view;
-            vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet[0], 0, nullptr);
             vkCmdDraw(commandBuffer, 6, 1, startVert, 0);
 
             break;
 
         case 1:
-            imageInfo.imageView = screenTextures[0].view;
-            vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet[0], 0, nullptr);
             vkCmdDraw(commandBuffer, 6, 1, 0, 0);
             break;
 
@@ -1482,9 +1547,7 @@ void RenderDevice::FlipScreen()
 #else
             startVert = 6;
 #endif
-            imageInfo.imageView = screenTextures[0].view;
-            vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet[0], 0, nullptr);
             vkCmdDraw(commandBuffer, 6, 1, startVert, 0);
 
 #if RETRO_REV02
@@ -1492,49 +1555,33 @@ void RenderDevice::FlipScreen()
 #else
             startVert = 12;
 #endif
-            imageInfo.imageView = screenTextures[1].view;
-            vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet[1], 0, nullptr);
             vkCmdDraw(commandBuffer, 6, 1, startVert, 0);
             break;
 
 #if RETRO_REV02
         case 3:
-            imageInfo.imageView = screenTextures[0].view;
-            vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet[0], 0, nullptr);
             vkCmdDraw(commandBuffer, 6, 1, startVertex_3P[0], 0);
 
-            imageInfo.imageView = screenTextures[1].view;
-            vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet[1], 0, nullptr);
             vkCmdDraw(commandBuffer, 6, 1, startVertex_3P[1], 0);
 
-            imageInfo.imageView = screenTextures[2].view;
-            vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet[2], 0, nullptr);
             vkCmdDraw(commandBuffer, 6, 1, startVertex_3P[2], 0);
             break;
 
         case 4:
-            imageInfo.imageView = screenTextures[0].view;
-            vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet[0], 0, nullptr);
             vkCmdDraw(commandBuffer, 6, 1, 30, 0);
 
-            imageInfo.imageView = screenTextures[1].view;
-            vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet[1], 0, nullptr);
             vkCmdDraw(commandBuffer, 6, 1, 36, 0);
 
-            imageInfo.imageView = screenTextures[2].view;
-            vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet[2], 0, nullptr);
             vkCmdDraw(commandBuffer, 6, 1, 42, 0);
 
-            imageInfo.imageView = screenTextures[3].view;
-            vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet[3], 0, nullptr);
             vkCmdDraw(commandBuffer, 6, 1, 48, 0);
             break;
 #endif
@@ -1614,11 +1661,13 @@ void RenderDevice::Release(bool32 isRefresh)
 
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
     vkDestroyRenderPass(device, renderPass, nullptr);
-    
+
     vkDestroyBuffer(device, uniformBuffer, nullptr);
     vkFreeMemory(device, uniformBufferMemory, nullptr);
 
-    vkFreeDescriptorSets(device, descriptorPool, 1, &descriptorSet);
+    for (int32 i = 0; i < SCREEN_COUNT; ++i) {
+        vkFreeDescriptorSets(device, descriptorPool, 1, &descriptorSet[i]);
+    }
     vkDestroyDescriptorPool(device, descriptorPool, nullptr);
     vkDestroyDescriptorSetLayout(device, setLayout, nullptr);
 
@@ -1676,7 +1725,7 @@ VkDescriptorBufferInfo bufferInfo{};
 
 bool RenderDevice::InitShaders()
 {
-    if (descriptorSet == VK_NULL_HANDLE) {
+    if (descriptorSet[0] == VK_NULL_HANDLE) {
         VkSamplerCreateInfo samplerPointInfo{};
         samplerPointInfo.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
         samplerPointInfo.magFilter               = VK_FILTER_NEAREST;
@@ -1708,15 +1757,20 @@ bool RenderDevice::InitShaders()
             return false;
         }
 
+        // Use the same descriptor set layout for all screens
+        VkDescriptorSetLayout layouts[SCREEN_COUNT];
+        for (int32 i = 0; i < SCREEN_COUNT; i++) {
+            layouts[i] = setLayout;
+        }
         //! CREATE DESCRIPTOR SET
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorPool     = descriptorPool;
-        allocInfo.descriptorSetCount = 1;
-        allocInfo.pSetLayouts        = &setLayout;
+        allocInfo.descriptorSetCount = SCREEN_COUNT;
+        allocInfo.pSetLayouts        = layouts;
 
-        if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS) {
-            PrintLog(PRINT_NORMAL, "[VK] Failed to allocate descriptor set");
+        if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSet) != VK_SUCCESS) {
+            PrintLog(PRINT_NORMAL, "[VK] Failed to allocate descriptor sets");
             return false;
         }
 
@@ -1731,25 +1785,27 @@ bool RenderDevice::InitShaders()
         imageInfo.imageView   = imageTexture.view;
         imageInfo.sampler     = samplerLinear;
 
-        descriptorWrites[0]                 = {};
-        descriptorWrites[0].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet          = descriptorSet;
-        descriptorWrites[0].dstBinding      = 0;
-        descriptorWrites[0].dstArrayElement = 0;
-        descriptorWrites[0].descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pImageInfo      = &imageInfo;
+        for (int32 i = 0; i < SCREEN_COUNT; ++i) {
+            descriptorWrites[i][0]                 = {};
+            descriptorWrites[i][0].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[i][0].dstSet          = descriptorSet[i];
+            descriptorWrites[i][0].dstBinding      = 0;
+            descriptorWrites[i][0].dstArrayElement = 0;
+            descriptorWrites[i][0].descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptorWrites[i][0].descriptorCount = 1;
+            descriptorWrites[i][0].pImageInfo      = &imageInfo;
 
-        descriptorWrites[1]                 = {};
-        descriptorWrites[1].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet          = descriptorSet;
-        descriptorWrites[1].dstBinding      = 1;
-        descriptorWrites[1].dstArrayElement = 0;
-        descriptorWrites[1].descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[1].descriptorCount = 1;
-        descriptorWrites[1].pBufferInfo     = &bufferInfo;
+            descriptorWrites[i][1]                 = {};
+            descriptorWrites[i][1].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[i][1].dstSet          = descriptorSet[i];
+            descriptorWrites[i][1].dstBinding      = 1;
+            descriptorWrites[i][1].dstArrayElement = 0;
+            descriptorWrites[i][1].descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[i][1].descriptorCount = 1;
+            descriptorWrites[i][1].pBufferInfo     = &bufferInfo;
 
-        vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
+            vkUpdateDescriptorSets(device, 2, descriptorWrites[i], 0, nullptr);
+        }
     }
 
     // Release old shader pipelines
@@ -1943,46 +1999,18 @@ void RenderDevice::RefreshWindow()
     videoSettings.windowState = WINDOWSTATE_UNINITIALIZED;
 
     Release(true);
-    if (!videoSettings.bordered)
-        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
-
-    GLFWmonitor *monitor = NULL;
-    int32 w, h;
-
-    if (videoSettings.windowed) {
-        w = videoSettings.windowWidth;
-        h = videoSettings.windowHeight;
-    }
-    else if (videoSettings.fsWidth <= 0 || videoSettings.fsHeight <= 0) {
-        monitor                 = glfwGetPrimaryMonitor();
-        const GLFWvidmode *mode = glfwGetVideoMode(monitor);
-        w                       = mode->width;
-        h                       = mode->height;
-    }
-    else {
-        monitor = glfwGetPrimaryMonitor();
-        w       = videoSettings.fsWidth;
-        h       = videoSettings.fsHeight;
-    }
-
-    window = glfwCreateWindow(w, h, gameVerInfo.gameTitle, monitor, NULL);
-    if (!window) {
-        PrintLog(PRINT_NORMAL, "ERROR: [GLFW] window creation failed");
+    if ((window = CreateGLFWWindow()) == NULL)
         return;
-    }
-    PrintLog(PRINT_NORMAL, "w: %d h: %d windowed: %d", w, h, videoSettings.windowed);
-
-    glfwSetKeyCallback(window, ProcessKeyEvent);
-    glfwSetMouseButtonCallback(window, ProcessMouseEvent);
-    glfwSetWindowFocusCallback(window, ProcessFocusEvent);
-    glfwSetWindowMaximizeCallback(window, ProcessMaximizeEvent);
 
     if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
         PrintLog(PRINT_NORMAL, "[VK] Vulkan surface could not be created");
         return;
     }
 
-    descriptorSet = VK_NULL_HANDLE;
+    // Update swapchain details to refresh capabilities ({min/max}ImageExtent)
+    QuerySwapChainDetails(physicalDevice);
+
+    descriptorSet[0] = VK_NULL_HANDLE;
 
     if (!InitGraphicsAPI() || !InitShaders())
         return;

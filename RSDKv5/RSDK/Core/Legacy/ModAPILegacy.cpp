@@ -6,14 +6,6 @@ char RSDK::Legacy::modScriptPaths[OBJECT_COUNT][0x40];
 uint8 RSDK::Legacy::modScriptFlags[OBJECT_COUNT];
 uint8 RSDK::Legacy::modObjCount = 0;
 
-int32 RSDK::Legacy::v4::OpenModMenu()
-{
-    OpenDevMenu();
-    devMenu.state = DevMenu_ModsMenu;
-
-    return 1;
-}
-
 void RSDK::Legacy::v4::RefreshEngine() { RSDK::ApplyModChanges(); }
 void RSDK::Legacy::v4::GetModCount() { scriptEng.checkResult = RSDK::GetModCount(false); }
 void RSDK::Legacy::v4::GetModName(int32 *textMenu, int32 *highlight, uint32 *id, int32 *unused)
@@ -152,6 +144,7 @@ void RSDK::Legacy::v4::SetWindowScale(int32 *scale, int32 *unused)
         return;
 
     SetVideoSetting(VIDEOSETTING_WINDOW_WIDTH, videoSettings.pixWidth * *scale);
+    SetVideoSetting(VIDEOSETTING_WINDOW_HEIGHT, SCREEN_YSIZE * *scale);
 }
 void RSDK::Legacy::v4::GetWindowScaleMode() { scriptEng.checkResult = GetVideoSetting(VIDEOSETTING_SHADERID); }
 void RSDK::Legacy::v4::SetWindowScaleMode(int32 *mode, int32 *unused)

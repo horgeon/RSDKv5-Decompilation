@@ -204,6 +204,8 @@ void RSDK::Legacy::v3::ProcessEngine()
             ResetCurrentStageFolder();
             break;
 
+        case ENGINE_EXITGAME: RSDK::SKU::ExitGame(); break;
+
         case ENGINE_WAIT: break;
 
         case ENGINE_SCRIPTERROR: {
@@ -311,6 +313,10 @@ enum RetroEngineCallbacks {
     NOTIFY_STATS_CHARA_ACTION2 = 165,
 
     // Sega Forever stuff
+    // Mod CBs start at about 1000
+    CALLBACK_STARTGAME                        = 101,
+    CALLBACK_NONE_104                         = 104,
+    CALLBACK_SHOWURL                          = 107,
     CALLBACK_SHOWMENU_2                       = 997,
     CALLBACK_SHOWHELPCENTER                   = 998,
     CALLBACK_CHANGEADSTYPE                    = 999,
@@ -340,6 +346,9 @@ enum RetroEngineCallbacks {
     // Mod CBs start at 0x1000
     CALLBACK_SET1P = 0x1001,
     CALLBACK_SET2P = 0x1002,
+    CALLBACK_GETWINDOWINFO    = 0x1003,
+    CALLBACK_SETWINDOWCHANGES = 0x1004,
+    CALLBACK_OPENMODMENU      = 0x1005,
 #endif
 };
 
@@ -469,6 +478,14 @@ void RSDK::Legacy::v3::RetroEngineCallback(int32 callbackID)
         case NOTIFY_STATS_CHARA_ACTION2: PrintLog(PRINT_NORMAL, "NOTIFY: StatsCharaAction2() -> %d, %d, %d", notifyParam1, notifyParam2, notifyParam3); break;
 
         // Sega Forever stuff
+        case CALLBACK_STARTGAME:
+            PrintLog(PRINT_NORMAL, "Callback: startGame()");
+
+            // Set lives count and the like
+            SetGlobalVariableByName("Config.NumOfLives", 3);
+            SetGlobalVariableByName("Config.IsPremiumUser", 1);
+            break;
+        case CALLBACK_SHOWURL: PrintLog(PRINT_NORMAL, "Callback: showURL(\"https://www.sega.com\")"); break;
         case CALLBACK_SHOWMENU_2: PrintLog(PRINT_NORMAL, "Callback: showMenu(2)"); break;
         case CALLBACK_SHOWHELPCENTER: PrintLog(PRINT_NORMAL, "Callback: Show Help Center"); break;
         case CALLBACK_CHANGEADSTYPE: PrintLog(PRINT_NORMAL, "Callback: Change Ads Type"); break;
@@ -500,6 +517,35 @@ void RSDK::Legacy::v3::RetroEngineCallback(int32 callbackID)
 #if RETRO_USE_MOD_LOADER
         case CALLBACK_SET1P: activePlayerCount = 1; break;
         case CALLBACK_SET2P: activePlayerCount = 2; break;
+        case CALLBACK_GETWINDOWINFO:
+            SetGlobalVariableByName("Engine.Fullscreen", GetVideoSetting(VIDEOSETTING_WINDOWED) ^ 1);
+            SetGlobalVariableByName("Engine.Borderless", GetVideoSetting(VIDEOSETTING_BORDERED) ^ 1);
+            SetGlobalVariableByName("Engine.VSync", GetVideoSetting(VIDEOSETTING_VSYNC));
+            SetGlobalVariableByName("Engine.ScalingMode", GetVideoSetting(VIDEOSETTING_SHADERID));
+            SetGlobalVariableByName("Engine.WindowScale", GetVideoSetting(VIDEOSETTING_WINDOW_WIDTH) / videoSettings.pixWidth);
+            SetGlobalVariableByName("Engine.ScreenWidth", videoSettings.pixWidth);
+            SetGlobalVariableByName("Engine.HardwareRenderer", 0);
+            break;
+        case CALLBACK_SETWINDOWCHANGES: {
+            if (GetGlobalVariableID("Engine.Fullscreen") != 0xFF)
+                SetVideoSetting(VIDEOSETTING_WINDOWED, GetGlobalVariableByName("Engine.Fullscreen") ^ 1);
+            if (GetGlobalVariableID("Engine.Borderless") != 0xFF)
+                SetVideoSetting(VIDEOSETTING_BORDERED, GetGlobalVariableByName("Engine.Borderless") ^ 1);
+            if (GetGlobalVariableID("Engine.VSync") != 0xFF)
+                SetVideoSetting(VIDEOSETTING_VSYNC, GetGlobalVariableByName("Engine.VSync"));
+            if (GetGlobalVariableID("Engine.ScalingMode") != 0xFF)
+                SetVideoSetting(VIDEOSETTING_SHADERID, GetGlobalVariableByName("Engine.ScalingMode") % shaderCount);
+            int32 windowScale = GetGlobalVariableID("Engine.WindowScale") != 0xFF
+                                    ? GetGlobalVariableByName("Engine.WindowScale")
+                                    : GetVideoSetting(VIDEOSETTING_WINDOW_WIDTH) / videoSettings.pixWidth;
+            if (GetGlobalVariableID("Engine.ScreenWidth") != 0xFF)
+                videoSettings.pixWidth = GetGlobalVariableByName("Engine.ScreenWidth");
+            SetVideoSetting(VIDEOSETTING_WINDOW_WIDTH, videoSettings.pixWidth * windowScale);
+            SetVideoSetting(VIDEOSETTING_WINDOW_HEIGHT, SCREEN_YSIZE * windowScale);
+            RSDK::UpdateGameWindow();
+            break;
+        }
+        case CALLBACK_OPENMODMENU: OpenModMenu(); break;
 #endif
     }
 }
@@ -563,7 +609,7 @@ void RSDK::Legacy::v3::LoadXMLVariables(const tinyxml2::XMLElement *gameElement)
     const tinyxml2::XMLElement *variablesElement = gameElement->FirstChildElement("variables");
     if (variablesElement) {
         for (const tinyxml2::XMLElement *varElement = variablesElement->FirstChildElement("variable"); varElement;
-             varElement                             = varElement->NextSiblingElement("variable")) {
+            varElement                             = varElement->NextSiblingElement("variable")) {
             const tinyxml2::XMLAttribute *nameAttr = varElement->FindAttribute("name");
             const char *varName                    = "unknownVariable";
             if (nameAttr)
@@ -574,9 +620,13 @@ void RSDK::Legacy::v3::LoadXMLVariables(const tinyxml2::XMLElement *gameElement)
             if (valAttr)
                 varValue = valAttr->IntValue();
 
-            StrCopy(globalVariables[globalVariablesCount].name, varName);
-            globalVariables[globalVariablesCount].value = varValue;
-            globalVariablesCount++;
+            if (globalVariablesCount >= LEGACY_GLOBALVAR_COUNT)
+                PrintLog(PRINT_ERROR, "[MOD] ERROR: Failed to add global variable '%s' (max limit reached)", varName);
+            else if (GetGlobalVariableID(varName) == 0xFF) {
+                StrCopy(globalVariables[globalVariablesCount].name, varName);
+                globalVariables[globalVariablesCount].value = varValue;
+                globalVariablesCount++;
+            }
         }
     }
 }
