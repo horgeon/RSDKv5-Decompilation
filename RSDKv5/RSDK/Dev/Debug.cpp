@@ -30,8 +30,9 @@ inline void PrintConsole(const char *message) { printf("%s", message); }
 void RSDK::PrintLog(int32 mode, const char *message, ...)
 {
 #if RETRO_PLATFORM == RETRO_3DS
-  if (!printToConsole)
-    return;
+    if (!printToConsole && mode != PRINT_FATAL) {
+        return;
+    }
 #endif
 
 #ifndef RETRO_DISABLE_LOG
@@ -103,10 +104,29 @@ void RSDK::PrintLog(int32 mode, const char *message, ...)
 #elif RETRO_PLATFORM == RETRO_SWITCH
             printf("%s", outputString);
 #elif RETRO_PLATFORM == RETRO_3DS
-            if (printToConsole)
-              printf("%s", outputString);
+            if (printToConsole) {
+                printf("%s", outputString);
+            }
+            if (mode == PRINT_ERROR || mode == PRINT_FATAL) {
+                errorConf err;
+                memset(&err, 0, sizeof(err)); // errorInit doesn't zero the rest
+                // We do not handle language.
+                errorInit(&err, ERROR_TEXT, CFG_LANGUAGE_DEFAULT);
+
+                if (mode == PRINT_FATAL && !printToConsole) {
+                    err.softwareReset = true;
+                }
+                errorText(&err, outputString);
+
+                errorDisp(&err);
+            }
 #endif
         }
+#if RETRO_PLATFORM == RETRO_3DS
+    if (!printToConsole) {
+        return;
+    }
+#endif
 
 #if !RETRO_USE_ORIGINAL_CODE && RETRO_PLATFORM != RETRO_ANDROID
         char logPath[0x100];
